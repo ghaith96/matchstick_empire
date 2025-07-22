@@ -195,15 +195,23 @@ export const gameActions = {
   /**
    * Load game state from data
    */
-  load(data: GameStateUpdate): void {
+  load(data: GameStateUpdate | GameState): void {
     try {
       gameState.update(current => {
+        // If it's a full GameState (has all required properties), use it directly
+        if ('metadata' in data && 'resources' in data && 'production' in data && 'market' in data) {
+          const fullState = data as GameState;
+          return validateAndSanitizeState(fullState);
+        }
+        
+        // Otherwise treat as partial update
+        const partialData = data as GameStateUpdate;
         const newState = { 
           ...current,
-          ...(data.resources && { resources: { ...current.resources, ...data.resources } }),
-          ...(data.production && { production: { ...current.production, ...data.production } }),
-          ...(data.market && { market: { ...current.market, ...data.market } }),
-          ...(data.automation && { automation: { ...current.automation, ...data.automation } })
+          ...(partialData.resources && { resources: { ...current.resources, ...partialData.resources } }),
+          ...(partialData.production && { production: { ...current.production, ...partialData.production } }),
+          ...(partialData.market && { market: { ...current.market, ...partialData.market } }),
+          ...(partialData.automation && { automation: { ...current.automation, ...partialData.automation } })
         };
         return validateAndSanitizeState(newState);
       });

@@ -51,7 +51,7 @@
   }
 
   function handleKeyboardProduction(event: KeyboardEvent) {
-    if (event.code === 'Space') {
+    if (event.code === 'Space' && !event.repeat) {
       event.preventDefault();
       // Simulate click at center of button
       if (productionButton) {

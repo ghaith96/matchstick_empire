@@ -205,6 +205,81 @@ export class GameStorageService {
   }
 
   /**
+   * Load the most recent save (prioritizing auto-saves for seamless continuation)
+   */
+  async loadMostRecentSave(): Promise<{ saveId: string; gameState: GameState } | null> {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      const saves = await db.saves
+        .orderBy('timestamp')
+        .reverse()
+        .toArray();
+
+      if (saves.length === 0) {
+        return null;
+      }
+
+      // Prioritize auto-saves first (most recent), then any other saves
+      const autoSaves = saves.filter(save => save.isAutoSave);
+      const mostRecentSave = autoSaves.length > 0 ? autoSaves[0] : saves[0];
+
+      // Verify checksum if available
+      if (mostRecentSave.checksum) {
+        const expectedChecksum = await this.createChecksum(mostRecentSave.gameState);
+        if (expectedChecksum !== mostRecentSave.checksum) {
+          errorHandler.handleError(createError.storage('Most recent save corrupted, trying next save', { 
+            saveId: mostRecentSave.id 
+          }));
+          
+          // Try the next save if the most recent is corrupted
+          for (let i = 1; i < saves.length; i++) {
+            const nextSave = saves[i];
+            if (nextSave.checksum) {
+              const nextChecksum = await this.createChecksum(nextSave.gameState);
+              if (nextChecksum === nextSave.checksum) {
+                await this.trackEvent('game_loaded', { 
+                  saveId: nextSave.id, 
+                  version: nextSave.version,
+                  timeSinceSave: Date.now() - nextSave.timestamp,
+                  wasCorruptedFallback: true
+                });
+                return { saveId: nextSave.id, gameState: nextSave.gameState };
+              }
+            } else {
+              // If no checksum, trust the save
+              await this.trackEvent('game_loaded', { 
+                saveId: nextSave.id, 
+                version: nextSave.version,
+                timeSinceSave: Date.now() - nextSave.timestamp,
+                wasCorruptedFallback: true
+              });
+              return { saveId: nextSave.id, gameState: nextSave.gameState };
+            }
+          }
+          
+          return null; // All saves are corrupted
+        }
+      }
+
+      // Track load event
+      await this.trackEvent('game_loaded', { 
+        saveId: mostRecentSave.id, 
+        version: mostRecentSave.version,
+        timeSinceSave: Date.now() - mostRecentSave.timestamp,
+        autoLoaded: true
+      });
+
+      return { saveId: mostRecentSave.id, gameState: mostRecentSave.gameState };
+    } catch (error) {
+      errorHandler.handleError(createError.storage('Failed to load most recent save', { error }));
+      return null;
+    }
+  }
+
+  /**
    * List all saved games
    */
   async listSaves(): Promise<Omit<GameSave, 'gameState'>[]> {

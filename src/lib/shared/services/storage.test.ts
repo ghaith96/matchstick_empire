@@ -44,6 +44,7 @@ const createMockGameState = (): GameState => ({
       smartSelling: true
     },
     multipliers: [],
+    totalMoneySpent: 0,
     lastUpdate: Date.now()
   },
   achievements: {
@@ -193,6 +194,51 @@ describe('Storage Service', () => {
       const save = saves.find(s => s.id === saveId);
       expect(save?.checksum).toBeDefined();
       expect(save?.checksum).toMatch(/^[a-f0-9]{64}$/); // SHA-256 hex
+    });
+
+    it('should load most recent save correctly', async () => {
+      // Create multiple saves
+      const save1Id = await storageService.saveGame(mockGameState, 'Save 1');
+      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay
+      
+      const save2Id = await storageService.saveGame({
+        ...mockGameState,
+        resources: { ...mockGameState.resources, money: 999 }
+      }, 'Save 2');
+      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay
+      
+      // Create an auto-save (should be prioritized)
+      const autoSaveId = await storageService.saveGame({
+        ...mockGameState,
+        resources: { ...mockGameState.resources, money: 1234 }
+      }, undefined, true);
+      
+      const result = await storageService.loadMostRecentSave();
+      
+      expect(result).toBeDefined();
+      expect(result?.saveId).toBe(autoSaveId);
+      expect(result?.gameState.resources.money).toBe(1234);
+    });
+
+    it('should fallback to manual saves if no auto-saves exist', async () => {
+      const save1Id = await storageService.saveGame(mockGameState, 'Save 1');
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      const save2Id = await storageService.saveGame({
+        ...mockGameState,
+        resources: { ...mockGameState.resources, money: 777 }
+      }, 'Save 2');
+      
+      const result = await storageService.loadMostRecentSave();
+      
+      expect(result).toBeDefined();
+      expect(result?.saveId).toBe(save2Id);
+      expect(result?.gameState.resources.money).toBe(777);
+    });
+
+    it('should return null when no saves exist', async () => {
+      const result = await storageService.loadMostRecentSave();
+      expect(result).toBeNull();
     });
 
     it('should return null for non-existent save', async () => {

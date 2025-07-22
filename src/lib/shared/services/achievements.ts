@@ -167,6 +167,26 @@ export class AchievementService {
   }
 
   /**
+   * Synchronize achievement service state with loaded game state
+   * This prevents re-triggering of already unlocked achievements
+   */
+  public syncWithGameState(): void {
+    try {
+      const state = get(gameState);
+      const unlockedIds = state.achievements?.unlocked || [];
+      
+      // Update internal achievement state based on game state
+      this.achievements.forEach(achievement => {
+        achievement.unlocked = unlockedIds.includes(achievement.id);
+      });
+      
+      console.log(`🏆 Synced ${unlockedIds.length} unlocked achievements with service state`);
+    } catch (error) {
+      console.error('❌ Failed to sync achievement state:', error);
+    }
+  }
+
+  /**
    * Check for newly unlocked achievements
    */
   public checkAchievements(): SimpleAchievement[] {

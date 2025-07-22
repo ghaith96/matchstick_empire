@@ -6,6 +6,7 @@
 import { get } from 'svelte/store';
 import { gameState, gameActions } from '../stores/gameState.js';
 import { GameStorageService } from './index.js';
+import { achievementService } from './achievements.js';
 
 const gameStorageService = GameStorageService.getInstance();
 
@@ -46,11 +47,29 @@ class GameManager {
       // Initialize storage service
       await gameStorageService.initialize();
 
-      // Initialize new game if no existing state
-      const currentState = get(gameState);
-      if (!currentState.metadata.version) {
+      // Try to load the most recent save first
+      const mostRecentSave = await gameStorageService.loadMostRecentSave();
+      
+      if (mostRecentSave) {
+        // Load existing save
+        gameActions.load(mostRecentSave.gameState);
+        console.log('💾 Loaded existing save:', mostRecentSave.saveId);
+        
+        // Sync achievement service state with loaded game state
+        achievementService.syncWithGameState();
+        
+        // Emit load event
+        gameActions.emitEvent({
+          id: `auto_loaded_${Date.now()}`,
+          type: 'game_auto_loaded',
+          timestamp: Date.now(),
+          data: { saveId: mostRecentSave.saveId },
+          source: 'game_manager'
+        });
+      } else {
+        // No existing saves found, initialize new game
         this.initializeNewGame();
-        console.log('🆕 New game initialized');
+        console.log('🆕 No existing saves found, new game initialized');
       }
 
       // Setup auto-save
@@ -124,9 +143,23 @@ class GameManager {
       }
 
       const currentState = get(gameState);
-      const saveName = name || `Save ${new Date().toLocaleString()}`;
       
-      const result = await gameStorageService.saveGame(currentState, saveName);
+      // Update metadata before saving
+      const updatedState = {
+        ...currentState,
+        metadata: {
+          ...currentState.metadata,
+          lastSaved: Date.now()
+        }
+      };
+      
+      // Update the store with the new metadata
+      gameActions.load(updatedState);
+      
+      const saveName = name || `Save ${new Date().toLocaleString()}`;
+      const isAutoSave = name === 'auto-save' || name === 'shutdown-save' || name === 'tab-hidden-save';
+      
+      const result = await gameStorageService.saveGame(updatedState, saveName, isAutoSave);
       
       if (typeof result === 'string') {
         // Success - got save ID
@@ -139,7 +172,7 @@ class GameManager {
           id: `game_saved_${Date.now()}`,
           type: 'game_saved',
           timestamp: Date.now(),
-          data: { saveName, saveId: result },
+          data: { saveName, saveId: result, isAutoSave },
           source: 'game_manager'
         });
         
@@ -163,6 +196,9 @@ class GameManager {
       if (result) {
         gameActions.load(result);
         console.log('✅ Game loaded from save:', saveId);
+        
+        // Sync achievement service state with loaded game state
+        achievementService.syncWithGameState();
         
         // Emit load event
         gameActions.emitEvent({

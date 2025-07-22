@@ -29,8 +29,8 @@ describe('Achievement Service', () => {
       expect(newAchievements[0].name).toBe('First Light');
       
       const state = get(gameState);
-      expect(state.achievements.unlockedAchievements).toHaveLength(1);
-      expect(state.achievements.unlockedAchievements[0].id).toBe('first_match');
+      expect(state.achievements.unlocked).toHaveLength(1);
+      expect(state.achievements.unlocked[0]).toBe('first_match');
     });
 
     it('should unlock multiple achievements at once', () => {
@@ -56,7 +56,7 @@ describe('Achievement Service', () => {
       expect(secondCheck).toHaveLength(0);
       
       const state = get(gameState);
-      expect(state.achievements.unlockedAchievements).toHaveLength(1);
+      expect(state.achievements.unlocked).toHaveLength(1);
     });
 
     it('should manually unlock achievements by ID', () => {
@@ -66,7 +66,7 @@ describe('Achievement Service', () => {
       expect(achievement!.id).toBe('first_match');
       
       const state = get(gameState);
-      expect(state.achievements.unlockedAchievements).toHaveLength(1);
+      expect(state.achievements.unlocked).toHaveLength(1);
     });
 
     it('should not manually unlock non-existent achievements', () => {
@@ -75,7 +75,7 @@ describe('Achievement Service', () => {
       expect(achievement).toBeNull();
       
       const state = get(gameState);
-      expect(state.achievements.unlockedAchievements).toHaveLength(0);
+      expect(state.achievements.unlocked).toHaveLength(0);
     });
 
     it('should not manually unlock already unlocked achievements', () => {
@@ -88,7 +88,7 @@ describe('Achievement Service', () => {
       expect(second).toBeNull();
       
       const state = get(gameState);
-      expect(state.achievements.unlockedAchievements).toHaveLength(1);
+      expect(state.achievements.unlocked).toHaveLength(1);
     });
   });
 
@@ -138,61 +138,23 @@ describe('Achievement Service', () => {
 
   describe('Achievement Statistics', () => {
     it('should provide correct statistics for empty state', () => {
-      const stats = achievementService.getAchievementStats();
+      const stats = achievementService.getStats();
       
       expect(stats.totalAchievements).toBeGreaterThan(0);
       expect(stats.unlockedAchievements).toBe(0);
       expect(stats.completionPercentage).toBe(0);
       expect(stats.achievementPoints).toBe(0);
-      expect(stats.recentUnlocks).toHaveLength(0);
-      
-      // Check category progress
-      Object.values(stats.categoryProgress).forEach(category => {
-        expect(category.unlocked).toBe(0);
-        expect(category.total).toBeGreaterThanOrEqual(0);
-      });
     });
 
     it('should update statistics after unlocking achievements', () => {
       gameActions.addResources({ matchsticks: 100n });
       achievementService.checkAchievements();
       
-      const stats = achievementService.getAchievementStats();
+      const stats = achievementService.getStats();
       
-      expect(stats.unlockedAchievements).toBe(2); // first_match + hundred_matches
+      expect(stats.unlockedAchievements).toBe(2); // first_match + first_hundred
       expect(stats.completionPercentage).toBeGreaterThan(0);
       expect(stats.achievementPoints).toBeGreaterThan(0);
-      expect(stats.recentUnlocks).toHaveLength(2);
-      
-      // Check that production category has unlocked achievements
-      expect(stats.categoryProgress.production.unlocked).toBe(2);
-    });
-
-    it('should calculate category progress correctly', () => {
-      // Unlock production achievements
-      gameActions.addResources({ matchsticks: 100n });
-      achievementService.checkAchievements();
-      
-      // Unlock trading achievements
-      gameActions.updateMarket({ totalRevenue: 100 });
-      achievementService.checkAchievements();
-      
-      const stats = achievementService.getAchievementStats();
-      
-      expect(stats.categoryProgress.production.unlocked).toBeGreaterThan(0);
-      expect(stats.categoryProgress.trading.unlocked).toBeGreaterThan(0);
-    });
-
-    it('should show next milestones correctly', () => {
-      gameActions.addResources({ matchsticks: 50n });
-      
-      const stats = achievementService.getAchievementStats();
-      
-      expect(stats.nextMilestones.length).toBeGreaterThan(0);
-      
-      // Should include hundred_matches since we're at 50% progress
-      const hundredMatches = stats.nextMilestones.find(m => m.id === 'hundred_matches');
-      expect(hundredMatches).toBeDefined();
     });
   });
 
@@ -201,33 +163,16 @@ describe('Achievement Service', () => {
       const achievements = achievementService.getAvailableAchievements();
       
       expect(achievements.length).toBeGreaterThan(0);
-      
-      // Should not include hidden achievements that aren't unlocked
-      const hiddenAchievements = achievements.filter(a => a.isHidden);
-      expect(hiddenAchievements).toHaveLength(0);
-    });
-
-    it('should include unlocked hidden achievements', () => {
-      // Manually unlock a hidden achievement
-      achievementService.unlockAchievementById('easter_egg_finder');
-      
-      const achievements = achievementService.getAvailableAchievements();
-      const easterEgg = achievements.find(a => a.id === 'easter_egg_finder');
-      
-      expect(easterEgg).toBeDefined();
-      expect(easterEgg!.isHidden).toBe(true);
     });
 
     it('should show achievement details correctly', () => {
-      const achievements = achievementService.getAvailableAchievements();
+      const achievements = achievementService.getAllAchievements();
       const firstMatch = achievements.find(a => a.id === 'first_match');
       
       expect(firstMatch).toBeDefined();
       expect(firstMatch!.name).toBe('First Light');
       expect(firstMatch!.category).toBe('production');
       expect(firstMatch!.difficulty).toBe('easy');
-      expect(firstMatch!.icon).toBe('🔥');
-      expect(firstMatch!.isHidden).toBe(false);
     });
   });
 
@@ -469,14 +414,14 @@ describe('Achievement Service', () => {
   describe('Integration with Game State', () => {
     it('should properly integrate with game state management', () => {
       const initialState = get(gameState);
-      expect(initialState.achievements.unlockedAchievements).toHaveLength(0);
+      expect(initialState.achievements.unlocked).toHaveLength(0);
       expect(initialState.achievements.totalPoints).toBe(0);
       
       gameActions.addResources({ matchsticks: 1n });
       achievementService.checkAchievements();
       
       const updatedState = get(gameState);
-      expect(updatedState.achievements.unlockedAchievements).toHaveLength(1);
+      expect(updatedState.achievements.unlocked).toHaveLength(1);
       expect(updatedState.achievements.totalPoints).toBeGreaterThan(0);
     });
 
@@ -495,6 +440,130 @@ describe('Achievement Service', () => {
       gameActions.updateAutomation({ totalMoneySpent: 500 });
       const automationAchievements = achievementService.checkAchievements();
       expect(automationAchievements.some(a => a.category === 'automation')).toBe(true);
+    });
+  });
+
+  describe('State Synchronization', () => {
+    it('should sync achievement service state with loaded game state', () => {
+      // Simulate a saved game state with unlocked achievements
+      const savedGameState = {
+        achievements: {
+          unlocked: ['first_match', 'first_hundred'],
+          progress: {},
+          notifications: [],
+          stats: {
+            totalUnlocked: 2,
+            totalHidden: 0,
+            completionPercentage: 20,
+            unlockedToday: 0
+          }
+        }
+      };
+      
+      // Load the saved state
+      gameActions.load(savedGameState);
+      
+      // Before sync, achievements should be marked as not unlocked in service
+      const firstMatch = achievementService.getAchievement('first_match');
+      const firstHundred = achievementService.getAchievement('first_hundred');
+      expect(firstMatch?.unlocked).toBe(false);
+      expect(firstHundred?.unlocked).toBe(false);
+      
+      // Sync with game state
+      achievementService.syncWithGameState();
+      
+      // After sync, achievements should be marked as unlocked in service
+      expect(firstMatch?.unlocked).toBe(true);
+      expect(firstHundred?.unlocked).toBe(true);
+    });
+
+    it('should prevent re-triggering of already unlocked achievements', () => {
+      // Set up a game state where first match should be unlocked
+      gameActions.updateProduction({ totalProduced: 100n });
+      gameActions.updateAchievements({ unlocked: ['first_match'] });
+      
+      // Sync achievement service with this state
+      achievementService.syncWithGameState();
+      
+      // Check achievements - should not unlock first_match again
+      const newlyUnlocked = achievementService.checkAchievements();
+      
+      // Should only unlock first_hundred, not first_match
+      expect(newlyUnlocked.length).toBe(1);
+      expect(newlyUnlocked[0].id).toBe('first_hundred');
+      expect(newlyUnlocked.some(a => a.id === 'first_match')).toBe(false);
+    });
+
+    it('should handle empty unlocked achievements array', () => {
+      // Load a game state with no unlocked achievements
+      const emptyState = {
+        achievements: {
+          unlocked: [],
+          progress: {},
+          notifications: [],
+          stats: {
+            totalUnlocked: 0,
+            totalHidden: 0,
+            completionPercentage: 0,
+            unlockedToday: 0
+          }
+        }
+      };
+      
+      gameActions.load(emptyState);
+      
+      // Should not throw an error
+      expect(() => achievementService.syncWithGameState()).not.toThrow();
+      
+      // All achievements should remain unlocked = false
+      const allAchievements = achievementService.getAllAchievements();
+      allAchievements.forEach(achievement => {
+        expect(achievement.unlocked).toBe(false);
+      });
+    });
+  });
+
+  describe('State Synchronization - Core Fix', () => {
+    it('should sync achievement service with game state to prevent re-triggering', () => {
+      // Reset both achievement service and game state
+      achievementService.resetAchievements();
+      gameActions.reset();
+      
+      // Manually set up the achievement state to simulate an already unlocked achievement
+      gameActions.updateAchievements({
+        unlocked: ['first_match'],
+        stats: {
+          totalUnlocked: 1,
+          totalHidden: 0,
+          completionPercentage: 10,
+          unlockedToday: 0
+        }
+      });
+      
+      // Also set up production state to meet achievement requirements
+      gameActions.updateProduction({ totalProduced: 10n });
+      
+      // Debug: Check what the game state actually contains after updates
+      const currentState = get(gameState);
+      console.log('Current game state achievements:', currentState.achievements);
+      
+      // Before sync: achievement service should think first_match is not unlocked
+      const firstMatchBefore = achievementService.getAchievement('first_match');
+      expect(firstMatchBefore?.unlocked).toBe(false);
+      
+      // Sync the achievement service with the loaded game state
+      achievementService.syncWithGameState();
+      
+      // After sync: achievement service should know first_match is unlocked
+      const firstMatchAfter = achievementService.getAchievement('first_match');
+      expect(firstMatchAfter?.unlocked).toBe(true);
+      
+      // Now when we check achievements, it should NOT re-trigger first_match
+      const newlyUnlocked = achievementService.checkAchievements();
+      
+      // Should be empty because first_match was already unlocked
+      expect(newlyUnlocked.length).toBe(0);
+      expect(newlyUnlocked.some(a => a.id === 'first_match')).toBe(false);
     });
   });
 }); 

@@ -3,10 +3,10 @@
   import { automationService } from '$lib/shared/services/index.js';
   import { formatCurrency, formatNumber } from '$lib/shared/utils/formatting.js';
 
-  // Get available automation options
-  $: autoClickers = automationService.getAvailableAutoClickers();
-  $: facilities = automationService.getAvailableFacilities();
-  $: automationStats = automationService.getAutomationStats();
+  // Get available automation options - make reactive to game state changes
+  $: autoClickers = $gameState.automation && automationService.getAvailableAutoClickers();
+  $: facilities = $gameState.automation && automationService.getAvailableFacilities();
+  $: automationStats = $gameState.automation && automationService.getAutomationStats();
 
   function purchaseAutoClicker(clickerId: string) {
     const result = automationService.purchaseAutoClicker(clickerId);
