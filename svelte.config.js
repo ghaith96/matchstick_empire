@@ -17,6 +17,10 @@ const config = {
 			precompress: false,
 			strict: true
 		}),
+		// Configure paths for GitHub Pages deployment
+		paths: {
+			base: process.env.BASE_PATH || ''
+		},
 		// Prerender the app for static hosting
 		prerender: {
 			handleHttpError: 'warn',
