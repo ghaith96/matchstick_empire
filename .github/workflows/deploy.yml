@@ -30,7 +30,9 @@ jobs:
       - name: Build 🔧
         env:
           BASE_PATH: '/matchstick_empire'
-        run: npm run build
+        run: |
+          npm run build
+          touch build/.nojekyll
 
       - name: Deploy to GitHub Pages 🚀
         uses: JamesIves/github-pages-deploy-action@v4
